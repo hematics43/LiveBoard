@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LiveBoard</title>
+  <style>
+    body { margin: 0; background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    canvas { background: #fff; border: 2px solid #000; border-radius: 6px; cursor: crosshair; }
+    #clearBtn {
+      position: absolute; top: 20px; right: 20px;
+      padding: 10px 15px; background: red; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <button id="clearBtn">Clear Board</button>
+  <canvas id="board" width="800" height="500"></canvas>
+
+  <!-- Firebase SDK (compat version for easy HTML use) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <script>
+    // ✅ Your Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyCIDLsM2YKD2Uw5C_v-n97P5wz4eSUfO_M",
+      authDomain: "liveboard-fb357.firebaseapp.com",
+      databaseURL: "https://liveboard-fb357-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "liveboard-fb357",
+      storageBucket: "liveboard-fb357.firebasestorage.app",
+      messagingSenderId: "85829681917",
+      appId: "1:85829681917:web:3e82b038cba88db0e5b494"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const canvas = document.getElementById("board");
+    const ctx = canvas.getContext("2d");
+    const clearBtn = document.getElementById("clearBtn");
+
+    let drawing = false;
+    let lastX = 0, lastY = 0;
+
+    // Draw line on canvas
+    function drawLine(x1, y1, x2, y2, color="black") {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    // Mouse events
+    canvas.addEventListener("mousedown", (e) => {
+      drawing = true;
+      [lastX, lastY] = [e.offsetX, e.offsetY];
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (!drawing) return;
+      const [x, y] = [e.offsetX, e.offsetY];
+      drawLine(lastX, lastY, x, y);
+      // Save stroke to Firebase
+      db.ref("blackboard").push({ x1: lastX, y1: lastY, x2: x, y2: y, color: "black" });
+      [lastX, lastY] = [x, y];
+    });
+
+    canvas.addEventListener("mouseup", () => drawing = false);
+    canvas.addEventListener("mouseleave", () => drawing = false);
+
+    // Listen for new lines from Firebase
+    db.ref("blackboard").on("child_added", (snapshot) => {
+      const line = snapshot.val();
+      drawLine(line.x1, line.y1, line.x2, line.y2, line.color);
+    });
+
+    // Clear board
+    clearBtn.addEventListener("click", () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      db.ref("blackboard").remove(); // clear from database
+    });
+
+    // Clear canvas when database is cleared
+    db.ref("blackboard").on("value", (snapshot) => {
+      if (!snapshot.exists()) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    });
+  </script>
+</body>
+</html>
