@@ -30,6 +30,9 @@
     #clearBtn { background: red; color: #fff; }
     #eraserBtn { background: gray; color: #fff; }
     #downloadBtn { background: green; color: #fff; }
+    #deleteImgBtn { background: darkorange; color: #fff; }
+    #undoBtn { background: dodgerblue; color: #fff; }
+    #redoBtn { background: teal; color: #fff; }
     /* Fullscreen button */
     #fullscreenBtn {
       position: fixed; bottom: 15px; right: 15px;
@@ -51,7 +54,10 @@
     <label>Size: <input type="range" id="sizePicker" min="1" max="30" value="3"></label>
     <label>Background: <input type="color" id="bgColorPicker" value="#ffffff"></label>
     <input type="file" id="uploadImage" accept="image/*">
+    <button id="deleteImgBtn">Delete Image</button>
     <button id="eraserBtn">Eraser</button>
+    <button id="undoBtn">Undo</button>
+    <button id="redoBtn">Redo</button>
     <button id="clearBtn">Clear</button>
     <button id="downloadBtn">Download</button>
   </div>
@@ -88,8 +94,11 @@
     const sizePicker = document.getElementById("sizePicker");
     const bgColorPicker = document.getElementById("bgColorPicker");
     const uploadImage = document.getElementById("uploadImage");
+    const deleteImgBtn = document.getElementById("deleteImgBtn");
     const clearBtn = document.getElementById("clearBtn");
     const eraserBtn = document.getElementById("eraserBtn");
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
     const downloadBtn = document.getElementById("downloadBtn");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
 
@@ -101,6 +110,10 @@
     let currentBgColor = "#ffffff";
     let linesCache = [];
     let bgImage = null;
+
+    // Undo/Redo stacks
+    let undoStack = [];
+    let redoStack = [];
 
     // 🔹 Resize + redraw
     function resizeCanvas() {
@@ -123,24 +136,20 @@
 
     // 🔹 Redraw everything
     function redrawAll() {
-      // Background color
       ctx.fillStyle = currentBgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Background image with framing
       if (bgImage) {
         let imgRatio = bgImage.width / bgImage.height;
         let canvasRatio = canvas.width / canvas.height;
         let drawWidth, drawHeight, offsetX, offsetY;
 
         if (imgRatio > canvasRatio) {
-          // Fit by width
           drawWidth = canvas.width;
           drawHeight = canvas.width / imgRatio;
           offsetX = 0;
           offsetY = (canvas.height - drawHeight) / 2;
         } else {
-          // Fit by height
           drawHeight = canvas.height;
           drawWidth = canvas.height * imgRatio;
           offsetX = (canvas.width - drawWidth) / 2;
@@ -150,7 +159,6 @@
         ctx.drawImage(bgImage, offsetX, offsetY, drawWidth, drawHeight);
       }
 
-      // Lines
       linesCache.forEach(line => {
         drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
       });
@@ -194,22 +202,27 @@
       const color = erasing ? currentBgColor : brushColor;
       const line = { x1: lastX, y1: lastY, x2: x, y2: y, color, size: brushSize };
       drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
-      db.ref("blackboard/lines").push(line);
+      const newRef = db.ref("blackboard/lines").push(line);
+      undoStack.push(newRef.key); // store key for undo
+      redoStack = []; // clear redo stack after new draw
       [lastX, lastY] = [x, y];
     }
 
     // Sync lines
     db.ref("blackboard/lines").on("child_added", (snapshot) => {
       const line = snapshot.val();
+      line._key = snapshot.key;
       linesCache.push(line);
       drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
     });
 
-    // Clear
+    // Clear all
     clearBtn.addEventListener("click", () => {
       db.ref("blackboard").remove();
       db.ref("background").set(currentBgColor);
       db.ref("image").remove();
+      undoStack = [];
+      redoStack = [];
     });
 
     db.ref("blackboard/lines").on("value", (snapshot) => {
@@ -242,17 +255,18 @@
       }
     });
 
-    // 🔹 Image upload
+    // Upload image
     uploadImage.addEventListener("change", (e) => {
       const file = e.target.files[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = function(event) {
-        db.ref("image").set(event.target.result); // save as base64
+        db.ref("image").set(event.target.result);
       };
       reader.readAsDataURL(file);
     });
 
+    // Sync image
     db.ref("image").on("value", (snapshot) => {
       if (snapshot.exists()) {
         const img = new Image();
@@ -267,6 +281,43 @@
       }
     });
 
+    // Delete only image
+    deleteImgBtn.addEventListener("click", () => {
+      db.ref("image").remove();
+    });
+
+    // Undo
+    undoBtn.addEventListener("click", () => {
+      if (undoStack.length > 0) {
+        const lastKey = undoStack.pop();
+        redoStack.push(lastKey);
+        db.ref("blackboard/lines/" + lastKey).remove();
+      }
+    });
+
+    // Redo
+    redoBtn.addEventListener("click", () => {
+      if (redoStack.length > 0) {
+        const key = redoStack.pop();
+        const line = linesCache.find(l => l._key === key);
+        if (line) {
+          db.ref("blackboard/lines/" + key).set({
+            x1: line.x1, y1: line.y1,
+            x2: line.x2, y2: line.y2,
+            color: line.color, size: line.size
+          });
+          undoStack.push(key);
+        }
+      }
+    });
+
+    // Remove lines from cache when deleted
+    db.ref("blackboard/lines").on("child_removed", (snapshot) => {
+      const key = snapshot.key;
+      linesCache = linesCache.filter(line => line._key !== key);
+      redrawAll();
+    });
+
     // Download
     downloadBtn.addEventListener("click", () => {
       const link = document.createElement("a");
@@ -275,7 +326,7 @@
       link.click();
     });
 
-    // Fullscreen Toggle
+    // Fullscreen toggle
     fullscreenBtn.addEventListener("click", () => {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => {
