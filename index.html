@@ -6,42 +6,85 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body, html {
-      margin: 0; padding: 0; height: 100%; width: 100%;
-      background: #222; color: white; font-family: Arial, sans-serif;
-      overflow: hidden; display: flex; flex-direction: column;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      background: #222;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
+
     #header {
-      background: #111; color: #fff; text-align: center;
-      font-size: 20px; font-weight: bold; padding: 10px;
-      border-bottom: 2px solid #444; flex-shrink: 0;
+      background: #111;
+      color: #fff;
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      padding: 10px;
+      border-bottom: 2px solid #444;
+      flex-shrink: 0;
     }
+
     #topToolbar, #bottomToolbar {
-      background: rgba(0, 0, 0, 0.9); padding: 6px;
-      display: flex; justify-content: center; align-items: center;
-      gap: 10px; flex-wrap: wrap; flex-shrink: 0;
+      background: rgba(0, 0, 0, 0.9);
+      padding: 6px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
     }
+
     #canvasContainer {
-      flex-grow: 1; display: flex; justify-content: center;
-      align-items: center; background: #000; overflow: hidden;
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      overflow: hidden;
     }
+
     canvas {
-      width: 100%; height: 100%; display: block;
-      background: #fff; touch-action: none;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
+      touch-action: none;
     }
+
     button, select {
-      padding: 6px 12px; border: none;
-      border-radius: 4px; cursor: pointer;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
     }
+
     #clearBtn { background: red; color: #fff; }
     #eraserBtn { background: gray; color: #fff; }
     #downloadBtn { background: green; color: #fff; }
     #deleteImgBtn { background: darkorange; color: #fff; }
+
     #fullscreenBtn {
-      position: fixed; bottom: 60px; right: 15px;
-      background: #000; color: #fff; font-size: 20px;
-      border-radius: 50%; width: 45px; height: 45px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; z-index: 30; border: 2px solid #444;
+      position: fixed;
+      bottom: 60px;
+      right: 15px;
+      background: #000;
+      color: #fff;
+      font-size: 20px;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 30;
+      border: 2px solid #444;
     }
     #fullscreenBtn:hover { background: #333; }
   </style>
@@ -58,16 +101,24 @@
     <label>😊 Emoji: 
       <select id="emojiPicker">
         <option value="">--Select--</option>
-        <option>😀</option><option>😂</option><option>😍</option>
-        <option>👍</option><option>🔥</option><option>🌟</option>
-        <option>💡</option><option>🎉</option><option>🚀</option>
+        <option>😀</option>
+        <option>😂</option>
+        <option>😍</option>
+        <option>👍</option>
+        <option>🔥</option>
+        <option>🌟</option>
+        <option>💡</option>
+        <option>🎉</option>
+        <option>🚀</option>
         <option>❤️</option>
       </select>
     </label>
   </div>
 
   <!-- Canvas container -->
-  <div id="canvasContainer"><canvas id="board"></canvas></div>
+  <div id="canvasContainer">
+    <canvas id="board"></canvas>
+  </div>
 
   <!-- Bottom Toolbar -->
   <div id="bottomToolbar">
@@ -96,6 +147,7 @@
       messagingSenderId: "85829681917",
       appId: "1:85829681917:web:3e82b038cba88db0e5b494"
     };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
@@ -119,8 +171,8 @@
     let linesCache = [], emojiCache = [], bgImage = null;
     let selectedEmoji = "";
 
-    let draggingEmoji = null; // currently dragged emoji
-    let offsetX = 0, offsetY = 0;
+    // For dragging emojis
+    let draggingEmoji = null;
 
     function resizeCanvas() {
       canvas.width = canvas.offsetWidth;
@@ -140,7 +192,7 @@
       ctx.stroke();
     }
 
-    function drawEmoji(x, y, emoji, size) {
+    function drawEmoji(x, y, emoji, size=brushSize) {
       ctx.font = `${size * 10}px Arial`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -159,11 +211,13 @@
         if (imgRatio > canvasRatio) {
           drawWidth = canvas.width;
           drawHeight = canvas.width / imgRatio;
-          offsetX = 0; offsetY = (canvas.height - drawHeight) / 2;
+          offsetX = 0;
+          offsetY = (canvas.height - drawHeight) / 2;
         } else {
           drawHeight = canvas.height;
           drawWidth = canvas.height * imgRatio;
-          offsetX = (canvas.width - drawWidth) / 2; offsetY = 0;
+          offsetX = (canvas.width - drawWidth) / 2;
+          offsetY = 0;
         }
         ctx.drawImage(bgImage, offsetX, offsetY, drawWidth, drawHeight);
       }
@@ -173,90 +227,127 @@
       );
 
       emojiCache.forEach(item =>
-        drawEmoji(item.x, item.y, item.emoji, item.size || 3)
+        drawEmoji(item.x, item.y, item.emoji, item.size)
       );
     }
 
     function drawAndSave(x, y) {
       if (selectedEmoji) {
-        const id = db.ref("blackboard/emojis").push().key;
-        const emojiItem = { id, x, y, emoji: selectedEmoji, size: brushSize };
-        db.ref("blackboard/emojis/" + id).set(emojiItem);
+        const emojiItem = { x, y, emoji: selectedEmoji, size: brushSize };
+        const ref = db.ref("blackboard/emojis").push();
+        emojiItem._key = ref.key;
+        ref.set(emojiItem);
       } else {
         const color = erasing ? currentBgColor : brushColor;
         const line = { x1: lastX, y1: lastY, x2: x, y2: y, color, size: brushSize };
+        drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
         db.ref("blackboard/lines").push(line);
       }
       [lastX, lastY] = [x, y];
     }
 
-    // Check if click is on emoji
-    function getEmojiAt(x, y) {
+    function findEmojiAt(x, y) {
       return emojiCache.find(item => {
-        ctx.font = `${item.size * 10}px Arial`;
-        let width = ctx.measureText(item.emoji).width;
-        let height = item.size * 10;
-        return (
-          x >= item.x - width/2 && x <= item.x + width/2 &&
-          y >= item.y - height/2 && y <= item.y + height/2
-        );
+        const size = item.size * 10;
+        return (x > item.x - size/2 && x < item.x + size/2 &&
+                y > item.y - size/2 && y < item.y + size/2);
       });
     }
 
-    // Mouse
-    canvas.addEventListener("mousedown", e => {
-      const [x, y] = [e.offsetX, e.offsetY];
-      const emojiHit = getEmojiAt(x, y);
-      if (emojiHit) {
-        draggingEmoji = emojiHit;
-        offsetX = x - emojiHit.x;
-        offsetY = y - emojiHit.y;
-      } else if (selectedEmoji) {
+    function startDrawingOrDrag(x, y) {
+      if (selectedEmoji) {
         drawAndSave(x, y);
+        selectedEmoji = "";
+        emojiPicker.value = "";
       } else {
-        drawing = true; [lastX, lastY] = [x, y];
+        const emoji = findEmojiAt(x, y);
+        if (emoji) {
+          draggingEmoji = emoji;
+        } else {
+          drawing = true; [lastX, lastY] = [x, y];
+        }
       }
-    });
-    canvas.addEventListener("mousemove", e => {
+    }
+
+    function moveDrawingOrDrag(x, y) {
       if (draggingEmoji) {
-        draggingEmoji.x = e.offsetX - offsetX;
-        draggingEmoji.y = e.offsetY - offsetY;
-        db.ref("blackboard/emojis/" + draggingEmoji.id).update({
-          x: draggingEmoji.x, y: draggingEmoji.y
-        });
-      } else if (drawing && !selectedEmoji) {
-        drawAndSave(e.offsetX, e.offsetY);
+        draggingEmoji.x = x; draggingEmoji.y = y;
+        db.ref("blackboard/emojis/" + draggingEmoji._key).set(draggingEmoji);
+      } else if (drawing) {
+        drawAndSave(x, y);
       }
+    }
+
+    function stopDrawingOrDrag() {
+      drawing = false;
+      draggingEmoji = null;
+    }
+
+    // Mouse
+    canvas.addEventListener("mousedown", e => startDrawingOrDrag(e.offsetX, e.offsetY));
+    canvas.addEventListener("mousemove", e => moveDrawingOrDrag(e.offsetX, e.offsetY));
+    canvas.addEventListener("mouseup", stopDrawingOrDrag);
+    canvas.addEventListener("mouseleave", stopDrawingOrDrag);
+
+    // Touch
+    canvas.addEventListener("touchstart", e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const t = e.touches[0];
+      startDrawingOrDrag(t.clientX - rect.left, t.clientY - rect.top);
     });
-    canvas.addEventListener("mouseup", () => { drawing = false; draggingEmoji = null; });
-    canvas.addEventListener("mouseleave", () => { drawing = false; draggingEmoji = null; });
+    canvas.addEventListener("touchmove", e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const t = e.touches[0];
+      moveDrawingOrDrag(t.clientX - rect.left, t.clientY - rect.top);
+    });
+    canvas.addEventListener("touchend", stopDrawingOrDrag);
 
     // Firebase sync
     db.ref("blackboard/lines").on("child_added", snap => {
-      const line = snap.val(); linesCache.push(line); redrawAll();
+      const line = snap.val();
+      linesCache.push(line);
+      drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
     });
+
     db.ref("blackboard/emojis").on("child_added", snap => {
-      const item = snap.val(); emojiCache.push(item); redrawAll();
+      const item = snap.val(); item._key = snap.key;
+      emojiCache.push(item);
+      drawEmoji(item.x, item.y, item.emoji, item.size);
     });
     db.ref("blackboard/emojis").on("child_changed", snap => {
-      const updated = snap.val();
-      emojiCache = emojiCache.map(e => e.id === updated.id ? updated : e);
+      const updated = snap.val(); updated._key = snap.key;
+      emojiCache = emojiCache.map(e => e._key === snap.key ? updated : e);
       redrawAll();
     });
     db.ref("blackboard").on("child_removed", () => {
-      linesCache = []; emojiCache = []; redrawAll();
+      linesCache = [];
+      emojiCache = [];
+      redrawAll();
     });
 
     // Tools
     colorPicker.oninput = () => { brushColor = colorPicker.value; erasing = false; selectedEmoji = ""; };
     sizePicker.oninput = () => { brushSize = sizePicker.value; };
-    eraserBtn.onclick = () => { erasing = !erasing; selectedEmoji = ""; eraserBtn.style.background = erasing ? "orange" : "gray"; };
-    bgColorPicker.oninput = () => { currentBgColor = bgColorPicker.value; db.ref("background").set(currentBgColor); redrawAll(); };
+    eraserBtn.onclick = () => {
+      erasing = !erasing; selectedEmoji = "";
+      eraserBtn.style.background = erasing ? "orange" : "gray";
+    };
+    bgColorPicker.oninput = () => {
+      currentBgColor = bgColorPicker.value;
+      db.ref("background").set(currentBgColor);
+      redrawAll();
+    };
     db.ref("background").on("value", snap => {
       if (snap.exists()) { currentBgColor = snap.val(); bgColorPicker.value = currentBgColor; redrawAll(); }
     });
 
-    clearBtn.onclick = () => { db.ref("blackboard").remove(); db.ref("background").set(currentBgColor); db.ref("image").remove(); };
+    clearBtn.onclick = () => {
+      db.ref("blackboard").remove();
+      db.ref("background").set(currentBgColor);
+      db.ref("image").remove();
+    };
 
     uploadImage.onchange = e => {
       const file = e.target.files[0]; if (!file) return;
@@ -265,16 +356,30 @@
       reader.readAsDataURL(file);
     };
     db.ref("image").on("value", snap => {
-      if (snap.exists()) { const img = new Image(); img.onload = () => { bgImage = img; redrawAll(); }; img.src = snap.val(); }
-      else { bgImage = null; redrawAll(); }
+      if (snap.exists()) {
+        const img = new Image();
+        img.onload = () => { bgImage = img; redrawAll(); };
+        img.src = snap.val();
+      } else { bgImage = null; redrawAll(); }
     });
     deleteImgBtn.onclick = () => db.ref("image").remove();
 
-    downloadBtn.onclick = () => { const link = document.createElement("a"); link.download = "blackboard.png"; link.href = canvas.toDataURL("image/png"); link.click(); };
+    downloadBtn.onclick = () => {
+      const link = document.createElement("a");
+      link.download = "blackboard.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
 
-    fullscreenBtn.onclick = () => { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else document.exitFullscreen(); };
+    fullscreenBtn.onclick = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    };
 
-    emojiPicker.onchange = () => { selectedEmoji = emojiPicker.value; erasing = false; };
+    emojiPicker.onchange = () => {
+      selectedEmoji = emojiPicker.value;
+      erasing = false;
+    };
   </script>
 </body>
 </html>
