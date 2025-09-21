@@ -2,21 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Firebase Live Blackboard</title>
+  <title>🔴 BlackBoard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     body { margin: 0; background: #222; color: white; font-family: Arial, sans-serif; overflow: hidden; }
-    #toolbar {
+    #header {
       position: fixed; top: 0; left: 0; right: 0;
+      background: #111; color: #fff;
+      text-align: center; font-size: 20px; font-weight: bold;
+      padding: 12px; z-index: 20; border-bottom: 2px solid #444;
+    }
+    #toolbar {
+      position: fixed; top: 50px; left: 0; right: 0;
       background: rgba(0,0,0,0.9); padding: 8px;
       display: flex; justify-content: center; align-items: center;
       gap: 10px; z-index: 10; flex-wrap: wrap;
     }
     canvas {
-      position: absolute; top: 50px; left: 0; right: 0; bottom: 0;
-      background: #fff; border-top: 2px solid #000;
-      touch-action: none; /* Prevent scrolling while drawing */
-      width: 100vw; height: calc(100vh - 50px); /* Auto fit to device */
+      position: absolute; top: 100px; left: 0; right: 0; bottom: 0;
+      border-top: 2px solid #000;
+      touch-action: none;
+      width: 100vw; height: calc(100vh - 100px); /* auto fit */
     }
     button {
       padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer;
@@ -27,15 +33,20 @@
   </style>
 </head>
 <body>
+  <!-- Heading -->
+  <div id="header">🔴 BlackBoard</div>
+
   <!-- Toolbar -->
   <div id="toolbar">
     <label>Color: <input type="color" id="colorPicker" value="#000000"></label>
     <label>Size: <input type="range" id="sizePicker" min="1" max="30" value="3"></label>
+    <label>Background: <input type="color" id="bgColorPicker" value="#ffffff"></label>
     <button id="eraserBtn">Eraser</button>
     <button id="clearBtn">Clear</button>
     <button id="downloadBtn">Download</button>
   </div>
 
+  <!-- Canvas -->
   <canvas id="board"></canvas>
 
   <!-- Firebase SDK -->
@@ -43,7 +54,7 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
-    // ✅ Your Firebase config
+    // ✅ Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyCIDLsM2YKD2Uw5C_v-n97P5wz4eSUfO_M",
       authDomain: "liveboard-fb357.firebaseapp.com",
@@ -62,6 +73,7 @@
 
     const colorPicker = document.getElementById("colorPicker");
     const sizePicker = document.getElementById("sizePicker");
+    const bgColorPicker = document.getElementById("bgColorPicker");
     const clearBtn = document.getElementById("clearBtn");
     const eraserBtn = document.getElementById("eraserBtn");
     const downloadBtn = document.getElementById("downloadBtn");
@@ -71,14 +83,16 @@
     let brushColor = colorPicker.value;
     let brushSize = sizePicker.value;
     let erasing = false;
+    let currentBgColor = "#ffffff";
+    let linesCache = []; // local cache of all strokes
 
-    // 🔹 Resize canvas to always fit device
+    // 🔹 Resize canvas and redraw everything
     function resizeCanvas() {
       canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight - 50; // subtract toolbar
+      canvas.height = window.innerHeight - 100; // header + toolbar
+      redrawAll();
     }
     window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
 
     // 🔹 Draw a line
     function drawLine(x1, y1, x2, y2, color, size) {
@@ -90,6 +104,20 @@
       ctx.lineTo(x2, y2);
       ctx.stroke();
     }
+
+    // 🔹 Redraw everything (background + lines)
+    function redrawAll() {
+      // Fill background
+      ctx.fillStyle = currentBgColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Redraw all lines
+      linesCache.forEach(line => {
+        drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
+      });
+    }
+
+    // First load
+    resizeCanvas();
 
     // 🔹 Mouse events
     canvas.addEventListener("mousedown", (e) => {
@@ -122,28 +150,32 @@
     });
     canvas.addEventListener("touchend", () => drawing = false);
 
-    // 🔹 Draw + Save
+    // 🔹 Draw + Save to Firebase
     function drawAndSave(x, y) {
-      const color = erasing ? "#ffffff" : brushColor;
-      drawLine(lastX, lastY, x, y, color, brushSize);
-      db.ref("blackboard").push({ x1: lastX, y1: lastY, x2: x, y2: y, color, size: brushSize });
+      const color = erasing ? currentBgColor : brushColor;
+      const line = { x1: lastX, y1: lastY, x2: x, y2: y, color, size: brushSize };
+      drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
+      db.ref("blackboard/lines").push(line);
       [lastX, lastY] = [x, y];
     }
 
-    // 🔹 Load new strokes from Firebase
-    db.ref("blackboard").on("child_added", (snapshot) => {
+    // 🔹 Sync lines
+    db.ref("blackboard/lines").on("child_added", (snapshot) => {
       const line = snapshot.val();
+      linesCache.push(line);
       drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
     });
 
     // 🔹 Clear board
     clearBtn.addEventListener("click", () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
       db.ref("blackboard").remove();
+      db.ref("background").set(currentBgColor);
     });
-    db.ref("blackboard").on("value", (snapshot) => {
+
+    db.ref("blackboard/lines").on("value", (snapshot) => {
       if (!snapshot.exists()) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        linesCache = [];
+        redrawAll();
       }
     });
 
@@ -155,11 +187,26 @@
       eraserBtn.style.background = erasing ? "orange" : "gray";
     });
 
-    // 🔹 Download canvas
+    // 🔹 Background color
+    bgColorPicker.addEventListener("input", () => {
+      currentBgColor = bgColorPicker.value;
+      db.ref("background").set(currentBgColor);
+      redrawAll();
+    });
+
+    db.ref("background").on("value", (snapshot) => {
+      if (snapshot.exists()) {
+        currentBgColor = snapshot.val();
+        bgColorPicker.value = currentBgColor;
+        redrawAll();
+      }
+    });
+
+    // 🔹 Download
     downloadBtn.addEventListener("click", () => {
       const link = document.createElement("a");
       link.download = "blackboard.png";
-      link.href = canvas.toDataURL();
+      link.href = canvas.toDataURL("image/png");
       link.click();
     });
   </script>
