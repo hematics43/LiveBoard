@@ -127,9 +127,27 @@
       ctx.fillStyle = currentBgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Background image
+      // Background image with framing
       if (bgImage) {
-        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        let imgRatio = bgImage.width / bgImage.height;
+        let canvasRatio = canvas.width / canvas.height;
+        let drawWidth, drawHeight, offsetX, offsetY;
+
+        if (imgRatio > canvasRatio) {
+          // Fit by width
+          drawWidth = canvas.width;
+          drawHeight = canvas.width / imgRatio;
+          offsetX = 0;
+          offsetY = (canvas.height - drawHeight) / 2;
+        } else {
+          // Fit by height
+          drawHeight = canvas.height;
+          drawWidth = canvas.height * imgRatio;
+          offsetX = (canvas.width - drawWidth) / 2;
+          offsetY = 0;
+        }
+
+        ctx.drawImage(bgImage, offsetX, offsetY, drawWidth, drawHeight);
       }
 
       // Lines
@@ -191,6 +209,7 @@
     clearBtn.addEventListener("click", () => {
       db.ref("blackboard").remove();
       db.ref("background").set(currentBgColor);
+      db.ref("image").remove();
     });
 
     db.ref("blackboard/lines").on("value", (snapshot) => {
