@@ -2,26 +2,48 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>LiveBoard</title>
+  <title>Firebase Live Blackboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
-    body { margin: 0; background: #222; display: flex; justify-content: center; align-items: center; height: 100vh; }
-    canvas { background: #fff; border: 2px solid #000; border-radius: 6px; cursor: crosshair; }
-    #clearBtn {
-      position: absolute; top: 20px; right: 20px;
-      padding: 10px 15px; background: red; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+    body { margin: 0; background: #222; color: white; font-family: Arial, sans-serif; overflow: hidden; }
+    #toolbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: rgba(0,0,0,0.9); padding: 8px;
+      display: flex; justify-content: center; align-items: center;
+      gap: 10px; z-index: 10; flex-wrap: wrap;
     }
+    canvas {
+      position: absolute; top: 50px; left: 0; right: 0; bottom: 0;
+      background: #fff; border-top: 2px solid #000;
+      touch-action: none; /* Prevent scrolling while drawing */
+      width: 100vw; height: calc(100vh - 50px); /* Auto fit to device */
+    }
+    button {
+      padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer;
+    }
+    #clearBtn { background: red; color: #fff; }
+    #eraserBtn { background: gray; color: #fff; }
+    #downloadBtn { background: green; color: #fff; }
   </style>
 </head>
 <body>
-  <button id="clearBtn">Clear Board</button>
-  <canvas id="board" width="800" height="500"></canvas>
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <label>Color: <input type="color" id="colorPicker" value="#000000"></label>
+    <label>Size: <input type="range" id="sizePicker" min="1" max="30" value="3"></label>
+    <button id="eraserBtn">Eraser</button>
+    <button id="clearBtn">Clear</button>
+    <button id="downloadBtn">Download</button>
+  </div>
 
-  <!-- Firebase SDK (compat version for easy HTML use) -->
+  <canvas id="board"></canvas>
+
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
   <script>
-    // ✅ Your Firebase configuration
+    // ✅ Your Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyCIDLsM2YKD2Uw5C_v-n97P5wz4eSUfO_M",
       authDomain: "liveboard-fb357.firebaseapp.com",
@@ -32,21 +54,36 @@
       appId: "1:85829681917:web:3e82b038cba88db0e5b494"
     };
 
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     const canvas = document.getElementById("board");
     const ctx = canvas.getContext("2d");
+
+    const colorPicker = document.getElementById("colorPicker");
+    const sizePicker = document.getElementById("sizePicker");
     const clearBtn = document.getElementById("clearBtn");
+    const eraserBtn = document.getElementById("eraserBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
 
     let drawing = false;
     let lastX = 0, lastY = 0;
+    let brushColor = colorPicker.value;
+    let brushSize = sizePicker.value;
+    let erasing = false;
 
-    // Draw line on canvas
-    function drawLine(x1, y1, x2, y2, color="black") {
+    // 🔹 Resize canvas to always fit device
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight - 50; // subtract toolbar
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    // 🔹 Draw a line
+    function drawLine(x1, y1, x2, y2, color, size) {
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = size;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(x1, y1);
@@ -54,41 +91,76 @@
       ctx.stroke();
     }
 
-    // Mouse events
+    // 🔹 Mouse events
     canvas.addEventListener("mousedown", (e) => {
       drawing = true;
       [lastX, lastY] = [e.offsetX, e.offsetY];
     });
-
     canvas.addEventListener("mousemove", (e) => {
       if (!drawing) return;
-      const [x, y] = [e.offsetX, e.offsetY];
-      drawLine(lastX, lastY, x, y);
-      // Save stroke to Firebase
-      db.ref("blackboard").push({ x1: lastX, y1: lastY, x2: x, y2: y, color: "black" });
-      [lastX, lastY] = [x, y];
+      drawAndSave(e.offsetX, e.offsetY);
     });
-
     canvas.addEventListener("mouseup", () => drawing = false);
     canvas.addEventListener("mouseleave", () => drawing = false);
 
-    // Listen for new lines from Firebase
+    // 🔹 Touch events
+    canvas.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      drawing = true;
+      [lastX, lastY] = [touch.clientX - rect.left, touch.clientY - rect.top];
+    });
+    canvas.addEventListener("touchmove", (e) => {
+      e.preventDefault();
+      if (!drawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+      drawAndSave(x, y);
+    });
+    canvas.addEventListener("touchend", () => drawing = false);
+
+    // 🔹 Draw + Save
+    function drawAndSave(x, y) {
+      const color = erasing ? "#ffffff" : brushColor;
+      drawLine(lastX, lastY, x, y, color, brushSize);
+      db.ref("blackboard").push({ x1: lastX, y1: lastY, x2: x, y2: y, color, size: brushSize });
+      [lastX, lastY] = [x, y];
+    }
+
+    // 🔹 Load new strokes from Firebase
     db.ref("blackboard").on("child_added", (snapshot) => {
       const line = snapshot.val();
-      drawLine(line.x1, line.y1, line.x2, line.y2, line.color);
+      drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
     });
 
-    // Clear board
+    // 🔹 Clear board
     clearBtn.addEventListener("click", () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      db.ref("blackboard").remove(); // clear from database
+      db.ref("blackboard").remove();
     });
-
-    // Clear canvas when database is cleared
     db.ref("blackboard").on("value", (snapshot) => {
       if (!snapshot.exists()) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
+    });
+
+    // 🔹 Tools
+    colorPicker.addEventListener("input", () => { brushColor = colorPicker.value; erasing = false; });
+    sizePicker.addEventListener("input", () => { brushSize = sizePicker.value; });
+    eraserBtn.addEventListener("click", () => {
+      erasing = !erasing;
+      eraserBtn.style.background = erasing ? "orange" : "gray";
+    });
+
+    // 🔹 Download canvas
+    downloadBtn.addEventListener("click", () => {
+      const link = document.createElement("a");
+      link.download = "blackboard.png";
+      link.href = canvas.toDataURL();
+      link.click();
     });
   </script>
 </body>
