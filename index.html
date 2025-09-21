@@ -5,65 +5,122 @@
   <title>🔴 BlackBoard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
-    body { margin: 0; background: #222; color: white; font-family: Arial, sans-serif; overflow: hidden; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      background: #222;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+
     #header {
-      position: fixed; top: 0; left: 0; right: 0;
-      background: #111; color: #fff;
-      text-align: center; font-size: 20px; font-weight: bold;
-      padding: 12px; z-index: 20; border-bottom: 2px solid #444;
+      background: #111;
+      color: #fff;
+      text-align: center;
+      font-size: 20px;
+      font-weight: bold;
+      padding: 10px;
+      border-bottom: 2px solid #444;
+      flex-shrink: 0;
     }
-    #toolbar {
-      position: fixed; top: 50px; left: 0; right: 0;
-      background: rgba(0,0,0,0.9); padding: 8px;
-      display: flex; justify-content: center; align-items: center;
-      gap: 10px; z-index: 10; flex-wrap: wrap;
+
+    #topToolbar, #bottomToolbar {
+      background: rgba(0, 0, 0, 0.9);
+      padding: 6px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      flex-shrink: 0;
     }
+
+    #canvasContainer {
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      overflow: hidden;
+    }
+
     canvas {
-      position: absolute; top: 100px; left: 0; right: 0; bottom: 0;
-      border-top: 2px solid #000;
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: #fff;
       touch-action: none;
-      width: 100vw; height: calc(100vh - 100px);
     }
+
     button {
-      padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer;
+      padding: 6px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
     }
+
     #clearBtn { background: red; color: #fff; }
     #eraserBtn { background: gray; color: #fff; }
     #downloadBtn { background: green; color: #fff; }
     #deleteImgBtn { background: darkorange; color: #fff; }
     #undoBtn { background: dodgerblue; color: #fff; }
     #redoBtn { background: teal; color: #fff; }
-    /* Fullscreen button */
+
     #fullscreenBtn {
-      position: fixed; bottom: 15px; right: 15px;
-      background: #000; color: #fff;
-      font-size: 20px; border-radius: 50%; width: 45px; height: 45px;
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer; z-index: 30; border: 2px solid #444;
+      position: fixed;
+      bottom: 60px;
+      right: 15px;
+      background: #000;
+      color: #fff;
+      font-size: 20px;
+      border-radius: 50%;
+      width: 45px;
+      height: 45px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 30;
+      border: 2px solid #444;
     }
     #fullscreenBtn:hover { background: #333; }
+
+    /* Fullscreen flex layout */
+    body {
+      display: flex;
+      flex-direction: column;
+    }
   </style>
 </head>
 <body>
   <!-- Heading -->
   <div id="header">🔴 BlackBoard</div>
 
-  <!-- Toolbar -->
-  <div id="toolbar">
-    <label>Color: <input type="color" id="colorPicker" value="#000000"></label>
-    <label>Size: <input type="range" id="sizePicker" min="1" max="30" value="3"></label>
-    <label>Background: <input type="color" id="bgColorPicker" value="#ffffff"></label>
-    <input type="file" id="uploadImage" accept="image/*">
-    <button id="deleteImgBtn">Delete Image</button>
-    <button id="eraserBtn">Eraser</button>
-    <button id="undoBtn">Undo</button>
-    <button id="redoBtn">Redo</button>
-    <button id="clearBtn">Clear</button>
-    <button id="downloadBtn">Download</button>
+  <!-- Top Toolbar -->
+  <div id="topToolbar">
+    <label>✏️ Color: <input type="color" id="colorPicker" value="#000000"></label>
+    <label>📏 Size: <input type="range" id="sizePicker" min="1" max="30" value="3"></label>
+    <button id="undoBtn">↩️ Undo</button>
+    <button id="redoBtn">↪️ Redo</button>
+    <label>🎨 Background: <input type="color" id="bgColorPicker" value="#ffffff"></label>
   </div>
 
-  <!-- Canvas -->
-  <canvas id="board"></canvas>
+  <!-- Canvas container -->
+  <div id="canvasContainer">
+    <canvas id="board"></canvas>
+  </div>
+
+  <!-- Bottom Toolbar -->
+  <div id="bottomToolbar">
+    <input type="file" id="uploadImage" accept="image/*">
+    <button id="deleteImgBtn">❌ Delete Image</button>
+    <button id="eraserBtn">🩹 Eraser</button>
+    <button id="clearBtn">🧹 Clear</button>
+    <button id="downloadBtn">💾 Download</button>
+  </div>
 
   <!-- Fullscreen Button -->
   <div id="fullscreenBtn">⛶</div>
@@ -102,28 +159,20 @@
     const downloadBtn = document.getElementById("downloadBtn");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
 
-    let drawing = false;
-    let lastX = 0, lastY = 0;
-    let brushColor = colorPicker.value;
-    let brushSize = sizePicker.value;
-    let erasing = false;
-    let currentBgColor = "#ffffff";
-    let linesCache = [];
-    let bgImage = null;
+    let drawing = false, lastX = 0, lastY = 0;
+    let brushColor = colorPicker.value, brushSize = sizePicker.value;
+    let erasing = false, currentBgColor = "#ffffff";
+    let linesCache = [], bgImage = null;
+    let undoStack = [], redoStack = [];
 
-    // Undo/Redo stacks
-    let undoStack = [];
-    let redoStack = [];
-
-    // 🔹 Resize + redraw
     function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight - 100;
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
       redrawAll();
     }
     window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
 
-    // 🔹 Draw line
     function drawLine(x1, y1, x2, y2, color, size) {
       ctx.strokeStyle = color;
       ctx.lineWidth = size;
@@ -134,7 +183,6 @@
       ctx.stroke();
     }
 
-    // 🔹 Redraw everything
     function redrawAll() {
       ctx.fillStyle = currentBgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -155,187 +203,124 @@
           offsetX = (canvas.width - drawWidth) / 2;
           offsetY = 0;
         }
-
         ctx.drawImage(bgImage, offsetX, offsetY, drawWidth, drawHeight);
       }
 
-      linesCache.forEach(line => {
-        drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
-      });
+      linesCache.forEach(line =>
+        drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size)
+      );
     }
 
-    resizeCanvas();
-
-    // Mouse events
-    canvas.addEventListener("mousedown", (e) => {
-      drawing = true;
-      [lastX, lastY] = [e.offsetX, e.offsetY];
-    });
-    canvas.addEventListener("mousemove", (e) => {
-      if (!drawing) return;
-      drawAndSave(e.offsetX, e.offsetY);
-    });
-    canvas.addEventListener("mouseup", () => drawing = false);
-    canvas.addEventListener("mouseleave", () => drawing = false);
-
-    // Touch events
-    canvas.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const touch = e.touches[0];
-      drawing = true;
-      [lastX, lastY] = [touch.clientX - rect.left, touch.clientY - rect.top];
-    });
-    canvas.addEventListener("touchmove", (e) => {
-      e.preventDefault();
-      if (!drawing) return;
-      const rect = canvas.getBoundingClientRect();
-      const touch = e.touches[0];
-      const x = touch.clientX - rect.left;
-      const y = touch.clientY - rect.top;
-      drawAndSave(x, y);
-    });
-    canvas.addEventListener("touchend", () => drawing = false);
-
-    // Save line
     function drawAndSave(x, y) {
       const color = erasing ? currentBgColor : brushColor;
       const line = { x1: lastX, y1: lastY, x2: x, y2: y, color, size: brushSize };
       drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
       const newRef = db.ref("blackboard/lines").push(line);
-      undoStack.push(newRef.key); // store key for undo
-      redoStack = []; // clear redo stack after new draw
+      undoStack.push({ key: newRef.key, line });
+      redoStack = [];
       [lastX, lastY] = [x, y];
     }
 
-    // Sync lines
-    db.ref("blackboard/lines").on("child_added", (snapshot) => {
-      const line = snapshot.val();
-      line._key = snapshot.key;
-      linesCache.push(line);
-      drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
+    // Mouse
+    canvas.addEventListener("mousedown", e => {
+      drawing = true; [lastX, lastY] = [e.offsetX, e.offsetY];
     });
-
-    // Clear all
-    clearBtn.addEventListener("click", () => {
-      db.ref("blackboard").remove();
-      db.ref("background").set(currentBgColor);
-      db.ref("image").remove();
-      undoStack = [];
-      redoStack = [];
+    canvas.addEventListener("mousemove", e => {
+      if (!drawing) return; drawAndSave(e.offsetX, e.offsetY);
     });
+    canvas.addEventListener("mouseup", () => drawing = false);
+    canvas.addEventListener("mouseleave", () => drawing = false);
 
-    db.ref("blackboard/lines").on("value", (snapshot) => {
-      if (!snapshot.exists()) {
-        linesCache = [];
-        redrawAll();
-      }
+    // Touch
+    canvas.addEventListener("touchstart", e => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const t = e.touches[0];
+      drawing = true; [lastX, lastY] = [t.clientX - rect.left, t.clientY - rect.top];
+    });
+    canvas.addEventListener("touchmove", e => {
+      e.preventDefault();
+      if (!drawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const t = e.touches[0];
+      drawAndSave(t.clientX - rect.left, t.clientY - rect.top);
+    });
+    canvas.addEventListener("touchend", () => drawing = false);
+
+    // Firebase sync
+    db.ref("blackboard/lines").on("child_added", snap => {
+      const line = snap.val(); line._key = snap.key;
+      linesCache.push(line); drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
+    });
+    db.ref("blackboard/lines").on("child_removed", snap => {
+      linesCache = linesCache.filter(l => l._key !== snap.key);
+      redrawAll();
     });
 
     // Tools
-    colorPicker.addEventListener("input", () => { brushColor = colorPicker.value; erasing = false; });
-    sizePicker.addEventListener("input", () => { brushSize = sizePicker.value; });
-    eraserBtn.addEventListener("click", () => {
+    colorPicker.oninput = () => { brushColor = colorPicker.value; erasing = false; };
+    sizePicker.oninput = () => { brushSize = sizePicker.value; };
+    eraserBtn.onclick = () => {
       erasing = !erasing;
       eraserBtn.style.background = erasing ? "orange" : "gray";
-    });
-
-    // Background color sync
-    bgColorPicker.addEventListener("input", () => {
+    };
+    bgColorPicker.oninput = () => {
       currentBgColor = bgColorPicker.value;
       db.ref("background").set(currentBgColor);
       redrawAll();
+    };
+    db.ref("background").on("value", snap => {
+      if (snap.exists()) { currentBgColor = snap.val(); bgColorPicker.value = currentBgColor; redrawAll(); }
     });
 
-    db.ref("background").on("value", (snapshot) => {
-      if (snapshot.exists()) {
-        currentBgColor = snapshot.val();
-        bgColorPicker.value = currentBgColor;
-        redrawAll();
-      }
-    });
-
-    // Upload image
-    uploadImage.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        db.ref("image").set(event.target.result);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    // Sync image
-    db.ref("image").on("value", (snapshot) => {
-      if (snapshot.exists()) {
-        const img = new Image();
-        img.onload = function() {
-          bgImage = img;
-          redrawAll();
-        };
-        img.src = snapshot.val();
-      } else {
-        bgImage = null;
-        redrawAll();
-      }
-    });
-
-    // Delete only image
-    deleteImgBtn.addEventListener("click", () => {
+    clearBtn.onclick = () => {
+      db.ref("blackboard").remove();
+      db.ref("background").set(currentBgColor);
       db.ref("image").remove();
-    });
+      undoStack = []; redoStack = [];
+    };
 
-    // Undo
-    undoBtn.addEventListener("click", () => {
+    uploadImage.onchange = e => {
+      const file = e.target.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => db.ref("image").set(ev.target.result);
+      reader.readAsDataURL(file);
+    };
+    db.ref("image").on("value", snap => {
+      if (snap.exists()) {
+        const img = new Image();
+        img.onload = () => { bgImage = img; redrawAll(); };
+        img.src = snap.val();
+      } else { bgImage = null; redrawAll(); }
+    });
+    deleteImgBtn.onclick = () => db.ref("image").remove();
+
+    undoBtn.onclick = () => {
       if (undoStack.length > 0) {
-        const lastKey = undoStack.pop();
-        redoStack.push(lastKey);
-        db.ref("blackboard/lines/" + lastKey).remove();
+        const last = undoStack.pop();
+        redoStack.push(last);
+        db.ref("blackboard/lines/" + last.key).remove();
       }
-    });
-
-    // Redo
-    redoBtn.addEventListener("click", () => {
+    };
+    redoBtn.onclick = () => {
       if (redoStack.length > 0) {
-        const key = redoStack.pop();
-        const line = linesCache.find(l => l._key === key);
-        if (line) {
-          db.ref("blackboard/lines/" + key).set({
-            x1: line.x1, y1: line.y1,
-            x2: line.x2, y2: line.y2,
-            color: line.color, size: line.size
-          });
-          undoStack.push(key);
-        }
+        const item = redoStack.pop();
+        db.ref("blackboard/lines/" + item.key).set(item.line);
+        undoStack.push(item);
       }
-    });
+    };
 
-    // Remove lines from cache when deleted
-    db.ref("blackboard/lines").on("child_removed", (snapshot) => {
-      const key = snapshot.key;
-      linesCache = linesCache.filter(line => line._key !== key);
-      redrawAll();
-    });
-
-    // Download
-    downloadBtn.addEventListener("click", () => {
+    downloadBtn.onclick = () => {
       const link = document.createElement("a");
       link.download = "blackboard.png";
       link.href = canvas.toDataURL("image/png");
       link.click();
-    });
+    };
 
-    // Fullscreen toggle
-    fullscreenBtn.addEventListener("click", () => {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-          alert(`Error: ${err.message}`);
-        });
-      } else {
-        document.exitFullscreen();
-      }
-    });
+    fullscreenBtn.onclick = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    };
   </script>
 </body>
 </html>
