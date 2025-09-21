@@ -38,9 +38,7 @@
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; z-index: 30; border: 2px solid #444;
     }
-    #fullscreenBtn:hover {
-      background: #333;
-    }
+    #fullscreenBtn:hover { background: #333; }
   </style>
 </head>
 <body>
@@ -52,6 +50,7 @@
     <label>Color: <input type="color" id="colorPicker" value="#000000"></label>
     <label>Size: <input type="range" id="sizePicker" min="1" max="30" value="3"></label>
     <label>Background: <input type="color" id="bgColorPicker" value="#ffffff"></label>
+    <input type="file" id="uploadImage" accept="image/*">
     <button id="eraserBtn">Eraser</button>
     <button id="clearBtn">Clear</button>
     <button id="downloadBtn">Download</button>
@@ -88,6 +87,7 @@
     const colorPicker = document.getElementById("colorPicker");
     const sizePicker = document.getElementById("sizePicker");
     const bgColorPicker = document.getElementById("bgColorPicker");
+    const uploadImage = document.getElementById("uploadImage");
     const clearBtn = document.getElementById("clearBtn");
     const eraserBtn = document.getElementById("eraserBtn");
     const downloadBtn = document.getElementById("downloadBtn");
@@ -99,9 +99,10 @@
     let brushSize = sizePicker.value;
     let erasing = false;
     let currentBgColor = "#ffffff";
-    let linesCache = []; // local cache of all strokes
+    let linesCache = [];
+    let bgImage = null;
 
-    // 🔹 Resize canvas and redraw everything
+    // 🔹 Resize + redraw
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight - 100;
@@ -122,14 +123,21 @@
 
     // 🔹 Redraw everything
     function redrawAll() {
+      // Background color
       ctx.fillStyle = currentBgColor;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Background image
+      if (bgImage) {
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+      }
+
+      // Lines
       linesCache.forEach(line => {
         drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
       });
     }
 
-    // First load
     resizeCanvas();
 
     // Mouse events
@@ -163,7 +171,7 @@
     });
     canvas.addEventListener("touchend", () => drawing = false);
 
-    // Draw and save
+    // Save line
     function drawAndSave(x, y) {
       const color = erasing ? currentBgColor : brushColor;
       const line = { x1: lastX, y1: lastY, x2: x, y2: y, color, size: brushSize };
@@ -179,7 +187,7 @@
       drawLine(line.x1, line.y1, line.x2, line.y2, line.color, line.size);
     });
 
-    // Clear board
+    // Clear
     clearBtn.addEventListener("click", () => {
       db.ref("blackboard").remove();
       db.ref("background").set(currentBgColor);
@@ -200,7 +208,7 @@
       eraserBtn.style.background = erasing ? "orange" : "gray";
     });
 
-    // Background color
+    // Background color sync
     bgColorPicker.addEventListener("input", () => {
       currentBgColor = bgColorPicker.value;
       db.ref("background").set(currentBgColor);
@@ -211,6 +219,31 @@
       if (snapshot.exists()) {
         currentBgColor = snapshot.val();
         bgColorPicker.value = currentBgColor;
+        redrawAll();
+      }
+    });
+
+    // 🔹 Image upload
+    uploadImage.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        db.ref("image").set(event.target.result); // save as base64
+      };
+      reader.readAsDataURL(file);
+    });
+
+    db.ref("image").on("value", (snapshot) => {
+      if (snapshot.exists()) {
+        const img = new Image();
+        img.onload = function() {
+          bgImage = img;
+          redrawAll();
+        };
+        img.src = snapshot.val();
+      } else {
+        bgImage = null;
         redrawAll();
       }
     });
